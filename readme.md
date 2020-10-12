@@ -133,6 +133,11 @@ progect
    |    |  |  |-app.module.ts _{ Подключение различных модулей }_
    |    |  |
    |    |  |-index.html _[{ Основной файл HTML, куда встраиваются компоненты страниц }]_
+   |    |  |
+   |    |  |-{ name_service }.service.spec.ts
+   |    |  |-{ name_service }.service.ts
+   |    |  |
+   |    |  |-auth.service.ts _{ Сервис для авторизации и регистрации пользователя в базе данных }_
    |    |
    |    |-angular.json _[{ Файл, конфигурации Angular CLI }]_
    |
@@ -371,7 +376,7 @@ _{ <router-outlet></router-outlet> }_
   __import { <name_service>Service } from './<name_service.service>'__
 (Не забудьте зарегистрировать сервис в providers:[])
 
-После регистрации, переходим в *[ /progect/{name progect}/src/app/<name_servicce>.service.ts ]*
+После регистрации, переходим в *[ /progect/{name progect}/src/app/<name_service>.service.ts ]*
 и прописываем функции, проверяющие данные поступающие от пользователя:
 
   >export class <name_service>Service {
@@ -489,3 +494,115 @@ __import { FlashMessagesModule } from 'angular2-flash-messages';__
           });*
           return false;
       }
+#===========================================================================
+[источник]:(https://youtube.com/watch?v=Ew_aMmTE35k)
+#Регистрация пользователя в БД
+
+Вначале создается сервис для авторизации и регистрации пользователя в БД:
+_sudo ng g service auth_
+(В нем прописывается функция выхода из кабинета пользователя)
+Сервис появится по адресу: *[ /progect/{name progect}/src/app/auth.service.ts ]*
+
+**Не забудьте подключить сервис в app.module.ts**
+> import { AuthService } from './auth.service';
+(Не забудьте дописать в *providers:*[AuthService])
+
+После регистрации сервиса в *app.module.ts*, переходим в *auth.service.ts*.
+Здесь создаем функцию, которая будет принимать объект, состоящий из данных, введенных пользователем
+в формы на странице регистрации. После приема объекта, функция передает данные из приложения написанного
+на AngularJS в приложение, написанное на NodeJS(Серверная часть приложения). Там (на сервере) эти данные будут
+приниматься и пользователь будет регистрироваться в БД.
+
+>registerUser(user){
+    let headers = new Headers(); // спец.класс, позволяющий отправить заголовки на др.веб-сайт(на северную часть)
+}
+
+Для работы класса Headers(), неоходимо его импортировать:
+**import { Http, Headers} from '@angular/http';**
+[ 
+    Необходимо установить модуль: _sudo npm install @angular/http@latest_ ;
+    После установки модуля, необходимо зайти в *[ /progect/{name progect}/src/app/app.module.ts ]*
+    и подключить модуль: **import { HttpModule } from '@angular/http';** (Не забудьте прописать в _imports_)
+
+]
+и создать переменную в конструкторе:
+**constructor(private http: Http) { }**
+
+Также необходимо подключить функцию *map*, для корректной отправки данных из AngularJs в NodeJS
+**import { map } from 'rxjs/operators';**
+
+>registerUser(user){
+    let headers = new Headers(); // спец.класс, позволяющий отправить заголовки на др.веб-сайт(на северную часть)
+    headers.append('Content-Type', 'application/json'); // Указание типа данных заголовков отправляемые на сервер(json)
+    return this.http.post( // post запрос на сервер модуля http
+      'http://localhost:3013/account/reg',  // URL сервера
+       user, // Какие данные отправлять
+       {headers: headers}).pipe(map((response: any) => response.json())); //Отправка данных на сервер
+  }
+
+После отправки данных из AngularJS а NodeJS, их принимает *[ /progect/routes/account.js ]*,
+а именно функция:
+>router.post('/reg', (req, res) => {  // Получение данных от пользователя (Находятся в req)
+  let newUser = new User({            // Локальный объект
+    name: req.body.name,              // 
+    email: req.body.email,            // Полученные данные из формы 
+    login: req.body.login,            //  заносятся в локальный объект
+    password: req.body.password,      //
+  });
+
+После получения данных, NodeJS регистрирует пользователя:
+>  User.addUser(newUser, (err, user) => {
+    if(err)
+      res.json({success: false, msg: "Пользователь не был добавлен"});
+    else
+      res.json({success: true, msg: "Пользователь был добавлен!!!"}); 
+  });
+});
+
+Для регистрации пользователя, необходимо вызывать функцию *registerUser()* в компоненте *[ /progect/{name progect}/src/app/reg/reg.component.ts ]*
+
+Импортируем сервис с функцией регистрации:
+**import { AuthService } from '../auth.service';**
+**import { Router } from '@angular/router'; //Для переадресации пользователя после регистрации на др. страницы**
+ далее необходимо зарегистрировать объекты в конструкторе класса:
+> constructor(
+        ...,
+        private router: Router,
+        private authService: AuthService,
+) { }
+
+Далее прописываем функцию регистрации, после пройденных проверок корректности данных,
+введенным пользователем в форму регистрации:
+
+>    this.authService.registerUser(user).subscribe(data => { 
+      if(!data.success) { // В случае неуспешной регистрации
+        /* Вывод сообщения о неуспешной регистрации */
+        this.flashMessages.show(data.msg, { 
+          cssClass: 'alert-danger',
+          timeout: 4000
+        });
+        this.router.navigate(['/reg']); // Переадресация в случае ошибки
+      } else { // В случае успеха
+        this.flashMessages.show(data.msg, { 
+          cssClass: 'alert-success',
+          timeout: 2000
+        });
+        this.router.navigate(['/auth']); // Переадресация в случае успеха
+      }
+    });
+
+#========================================================================
+# Авторизация и выход из учетной записи
+[источник]:(https://youtube.com/watch?v=bJ1cjxfOWNI)
+
+Переходим в *[ /progect/{name progect}/src/app/auth.service.ts ]* и создаем
+новую функцию, которая передает данные на сервер функции *[ /progect/routes/account.js ](router.post('/auth', (req, res))*:
+> authUser(user) {
+    let headers = new Headers(); // спец.класс, позволяющий отправить заголовки на др.веб-сайт(на северную часть)
+    headers.append('Content-Type', 'application/json'); // Указание типа данных заголовков отправляемые на сервер(json)
+    return this.http.post( // post запрос на сервер модуля http
+      'http://localhost:3013/account/auth',  // URL сервера
+       user, // Какие данные отправлять
+       {headers: headers},
+    ).pipe(map((response: any) => response.json())); //Отправка данных на сервер
+  }

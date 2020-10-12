@@ -12,10 +12,10 @@ const
 
 router.post('/reg', (req, res) => {  // Получение данных от пользователя (Находятся в req)
 	let newUser = new User({ 						// Локальный объект
-		name: req.body.name,							// 
 		email: req.body.email,						// Полученные данные из формы 
 		login: req.body.login,						//	заносятся в локальный объект
 		password: req.body.password,			//
+		passwordRepeat: req.body.passwordRepeat,
 	});
 
 	User.addUser(newUser, (err, user) => {
@@ -38,12 +38,12 @@ router.post('/auth', (req, res) => {
 	User.getUserByLogin(login, (err, user) => { 										// Сравнение логина введенного и хранящегося в БД
 		if(err) throw err;
 		if(!user)
-			return res.json({success: false, msg: "Такой пользователь был не найден"});
+			return res.json({success: false, msg: "Такой пользователь найден не был"});
 
 		User.comparePass(password, user.password, (err, isMatch) => { // В случае, если логин был обнаружен, сравнение паролей
 			if(err) throw err;
 			if(isMatch) { 																							// Авторизация пользователя
-				const token = jwt.sign(user, config.secret, {
+				const token = jwt.sign(user.toJSON(), config.secret, {
 					expiresIn: 3600 * 24 																		// Время сессии (3600 = 1 час) {Авторизация на сутки}
 				});
 
